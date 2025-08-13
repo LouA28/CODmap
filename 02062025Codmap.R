@@ -472,12 +472,6 @@ server <- function(input, output, session) {
         lng = ~lon3, lat = ~lat3,
         icon = awesomeIcons(icon = "star", markerColor = "purple"),
         label = "Final Destination: UK"
-      ) %>%
-      addLegend(
-        position = "bottomright",
-        colors = unique(data$route_color),
-        labels = paste("Route", unique(data$route_number)),
-        title = "Routes"
       )
   })
   
