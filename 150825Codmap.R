@@ -391,7 +391,7 @@ server <- function(input, output, session) {
       
       "<strong>Data caveats:</strong> This view helps understand logistics-PUR interactions, not meant to replace existing tools.<br><br>",
       
-      "<strong>Source:</strong> UK import PUR data 2022–2025 (HMRC),<br><br> <strong>Last Updated:</strong> July 2025<br><br>",
+      "<strong>Source:</strong> UK import PUR data 2022–2025 (HMRC),<br><br> <strong>Last Updated:</strong> August 2025<br><br>",
       
       "For details on <strong>COO/COD</strong>, visit the <a href='https://dap-prd2-connect.azure.defra.cloud/country_of_origin/' target='_blank'>Country of origin/dispatch dashboard</a>.<br>",
       "For <strong>PUR details</strong>, explore the <a href='https://dap-prd2-connect.azure.defra.cloud/PUR-app/' target='_blank'>UK Import PUR App</a>.<br>",
