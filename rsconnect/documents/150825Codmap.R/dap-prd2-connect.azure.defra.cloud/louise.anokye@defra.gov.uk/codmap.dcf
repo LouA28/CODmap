@@ -1,0 +1,13 @@
+name: codmap
+title: CODmap
+username: louise.anokye@defra.gov.uk
+account: louise.anokye@defra.gov.uk
+server: dap-prd2-connect.azure.defra.cloud
+hostUrl: https://dap-prd2-connect.azure.defra.cloud/__api__
+appId: 943
+bundleId: 8023
+url: https://dap-prd2-connect.azure.defra.cloud/content/d60963f6-e541-4237-a8ca-171100da8fde/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|02062025Codmap.R|COD data calculations II.R|COD processing II.R|PUR eligibility.xlsx|README.md|classifications2022to25.xlsx|Raw Data
