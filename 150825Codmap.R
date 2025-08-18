@@ -252,14 +252,15 @@ server <- function(input, output, session) {
       ) %>%
       group_by(route_id, lat1, lon1, lat2, lon2, lat3, lon3,
                cooalpha, codalpha, ukalpha, country_origin,
-               country_dispatch, country_destination, CN8) %>%
+               country_dispatch, country_destination, CN8, CN8_desc) %>%
       summarise(
         Avg_PUR = mean(PUR_clean, na.rm = TRUE),
         PUR_text = if (all(is.na(PUR_clean))) {
           "Not Eligible"
         } else {
-          sprintf("%.2f", mean(PUR_clean, na.rm = TRUE))
+          sprintf("%.0f", mean(PUR_clean, na.rm = TRUE))
         },
+        non_eligible_import = sum(ifelse(is.na(PUR_clean), Total_imp, 0), na.rm = TRUE), # <-- new line
         .groups = "drop"
       ) %>%
       mutate(
@@ -301,35 +302,68 @@ server <- function(input, output, session) {
     data <- filtered_data()
     if (is.null(data) || nrow(data) == 0) return(NULL)
     
-    cn8_desc <- cod_data %>%
-      filter(CN8 == input$cn8_code) %>%
+    # CN8 description from filtered data
+    cn8_desc <- data %>%
       pull(CN8_desc) %>%
       unique()
     
-    route_PUR_list <- paste0(
-      "<strong>", data$route, ":</strong> ",
-      ifelse(data$PUR == "Not Eligible", "Not Eligible", data$PUR)
-    ) %>% paste(collapse = "<br>")
+    # Split eligible and non-eligible routes
+    eligible_routes <- data %>%
+      filter(PUR != "Not Eligible") %>%
+      mutate(display = paste0("<strong>", route, ":</strong> ", PUR)) %>%
+      pull(display)
     
+    non_eligible_routes <- data %>%
+      filter(PUR == "Not Eligible") %>%
+      mutate(display = paste0("<strong>", route, "</strong> £", 
+                              format(non_eligible_import, big.mark = ","))) %>%
+      pull(display)
+    
+    # HTML for eligible routes
+    eligible_html <- paste0(
+      "<strong style='color:#3c7543;'>Eligible Routes:</strong><br>",
+      if (length(eligible_routes) > 0) {
+        paste(eligible_routes, collapse = "<br>")
+      } else {
+        "None"
+      }
+    )
+    
+    # HTML for non-eligible routes with explanatory line
+    non_eligible_html <- paste0(
+      "<br><br><strong style='color:#a33;'>Non-Eligible Routes:</strong><br>",
+      if (length(non_eligible_routes) > 0) {
+        paste0(
+          "<em>Values shown are total import values for each route:</em><br>",
+          paste(non_eligible_routes, collapse = "<br>")
+        )
+      } else {
+        "None"
+      }
+    )
+    
+    # Combine everything in a styled box
     HTML(paste0(
       "<div style='border: 1px solid #ddd; padding: 12px 15px; background-color: #f9f9f9; 
-                 border-radius: 8px; font-family: Segoe UI, sans-serif; font-size: 14px; line-height: 1.6;'>",
+           border-radius: 8px; font-family: Segoe UI, sans-serif; font-size: 14px; line-height: 1.6;'>",
       
       "<div style='margin-bottom: 8px;'>
-        <strong style='color:#3c7543;'>CN8 Code:</strong> ", input$cn8_code, "<br>
-        <strong style='color:#3c7543;'>CN8 Description:</strong> ", ifelse(length(cn8_desc) > 0, cn8_desc, "Unknown"), "<br>
-        <strong style='color:#3c7543;'>Country of Origin:</strong> ", input$country_filter, "
-      </div>",
+    <strong style='color:#3c7543;'>CN8 Code:</strong> ", input$cn8_code, "<br>
+    <strong style='color:#3c7543;'>CN8 Description:</strong> ", ifelse(length(cn8_desc) > 0, cn8_desc, "Unknown"), "<br>
+    <strong style='color:#3c7543;'>Country of Origin:</strong> ", input$country_filter, "<br>
+    <strong style='color:#3c7543;'>Year:</strong> ", input$year_filter, "
+  </div>",
       
       "<hr style='border: 0; border-top: 1px solid #ddd; margin: 8px 0;'>",
       
-      "<div>
-        <strong style='color:#3c7543;'>Routes & PUR Rates:</strong><br>", route_PUR_list, "
-      </div>",
+      eligible_html,
+      non_eligible_html,
       
       "</div>"
     ))
   })
+  
+  
   
   output$extra_info_box <- renderUI({
     req(filtered_data())
