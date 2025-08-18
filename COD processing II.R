@@ -16,7 +16,9 @@ library(sf)
 library(countrycode)
 
 
-pref_data <- readRDS("CODdata/PUR_type of preference2025-08-15.RDS")
+# pref_data <- readRDS("CODdata/PUR_type of preference2025-08-15.RDS")
+
+pref_data <- readRDS("CODdata/Cod_data2025-08-18.RDS")
 
 ## Map
 
