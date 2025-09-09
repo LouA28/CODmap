@@ -355,8 +355,13 @@ server <- function(input, output, session) {
     
     use_routes <- data %>%
       filter(route_type == "use") %>%
-      mutate(display = paste0("<strong>", route, ":</strong> ", PUR)) %>%
+      mutate(display = paste0(
+        "<strong>", route, ":</strong> £",
+        format(route_import, big.mark = ","),
+        " (PUR rate: ", PUR, ")"
+      )) %>%
       pull(display)
+    
     
     non_use_routes <- data %>%
       filter(route_type == "non_use") %>%
@@ -379,15 +384,25 @@ server <- function(input, output, session) {
     )
     
     use_html <- paste0(
-      "<strong style='color:#3c7543;'>Use Routes:</strong><br>",
-      if (length(use_routes) > 0) paste(use_routes, collapse = "<br>") else "None"
+      "<i class='fa fa-info-circle' style='color:#3c7543; cursor:pointer;' ",
+      "title='These are eligible routes where preferences were used. Values shown are total import values with PUR rates.'></i> ",
+      "<strong style='color:#3c7543;'>Use Routes</strong><br>",
+      if (length(use_routes) > 0)
+        paste0("<span style='font-size:90%; font-style:italic; color:#555;'>Values shown are total import values for each route:</span><br>",
+               paste(use_routes, collapse = "<br>"))
+      else "None"
     )
     
     non_use_html <- paste0(
-      "<br><br><strong style='color:#a33;'>Non-Use Routes:</strong><br>",
+      "<br><br>",
+      "<i class='fa fa-info-circle' style='color:#a33; cursor:pointer; margin-left:1px;' ",
+      "title='These are eligible routes where preferences were NOT used. Values shown are total import values.'></i> ",
+      "<strong style='color:#a33;'>Non-Use Routes</strong><br>",
       if (length(non_use_routes) > 0)
-        paste0("<em>Values shown are total import values for each route:</em><br>",
-               paste(non_use_routes, collapse = "<br>"))
+        paste0(
+          "<span style='font-size:90%; font-style:italic; color:#555;'>Values shown are total import values for each route:</span><br>",
+          paste(non_use_routes, collapse = "<br>")
+        )
       else "None"
     )
     
