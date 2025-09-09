@@ -93,6 +93,42 @@ ui <- fluidPage(
       .btn-primary:hover {
         background-color: #2f5c35; /* Slightly darker green on hover */
       }
+      
+      /* Dropdown box: white background with blue border */
+     .filter-box .selectize-control.single .selectize-input {
+    background-color: white !important;
+    color: black;
+    box-shadow: none !important;          /* remove blue glow */
+    }
+
+   /* Remove blue glow specifically when clicking into the box */
+   .filter-box .selectize-control.single .selectize-input.focus {
+    border: 2px solid #3c7543 !important;
+    box-shadow: none !important;
+   }
+  /* Placeholder text color */
+  .filter-box .selectize-control.single .selectize-input::placeholder {
+    color: #e0e0e0;
+   }
+
+  /* Dropdown options hover effect */
+  .selectize-dropdown-content .option:hover {
+    background-color: #3c7543 !important; /* green hover */
+    color: white !important;
+  }
+
+  /* Currently selected option in dropdown */
+  .selectize-dropdown-content .option.active {
+    background-color: #3c7543 !important; /* green background */
+    color: white !important;
+  }
+  
+  /* Currently selected option (remove blue, set green) */
+  .selectize-dropdown-content .option.selected {
+    background-color: #3c7543 !important; /* green */
+    color: white !important;
+   }
+
   "))
   ),
   
@@ -126,7 +162,6 @@ ui <- fluidPage(
     id = "main_tabs",
     type = "hidden",
     
-    # FILTER PAGE
     tabPanel("filters",
              fluidRow(
                column(
@@ -135,9 +170,9 @@ ui <- fluidPage(
                      div(class = "filter-box",
                          selectInput("country_filter", "Select Country of Origin:",
                                      choices = country_choices, selected = NULL),
+                         selectInput("year_filter", "Select Year:", choices = NULL),
                          selectInput("chapter_filter", "Select Chapter (HS2):", choices = NULL),
                          selectInput("cn8_code", "Select CN8 Code:", choices = NULL),
-                         selectInput("year_filter", "Select Year:", choices = NULL),
                          actionButton("show_map", "Show Map", class = "btn-primary", style = "margin-top:10px; width:100%;",disabled = TRUE)
                      )
                  )
@@ -175,25 +210,52 @@ ui <- fluidPage(
 
 # SERVER
 server <- function(input, output, session) {
-  updateTabsetPanel(session, "main_tabs", selected = "filters")
-  hide("loading-spinner")
+  observe({
+    updateTabsetPanel(session, "main_tabs", selected = "filters")
+    hide("loading-spinner")
+  })
   
   # Update chapter choices when country changes
   observeEvent(input$country_filter, {
-    filtered_chapters <- chapters_by_country_year %>%
+    filtered_years <- years_by_country %>%
       filter(country_origin == input$country_filter) %>%
+      pull(years) %>%
+      unique()
+    
+    updateSelectInput(session, "year_filter",
+                      choices = as.character(unlist(filtered_years)),
+                      selected = NULL)
+    
+    # Reset downstream
+    updateSelectInput(session, "chapter_filter", choices = NULL)
+    updateSelectInput(session, "cn8_code", choices = NULL)
+  })
+  
+  # 2. Update chapters when country + year selected
+  observeEvent(c(input$country_filter, input$year_filter), {
+    req(input$year_filter)
+    
+    filtered_chapters <- chapters_by_country_year %>%
+      filter(country_origin == input$country_filter,
+             Year == input$year_filter) %>%
       pull(chapters) %>%
       unique()
     
     updateSelectInput(session, "chapter_filter",
                       choices = as.character(unlist(filtered_chapters)),
                       selected = NULL)
+    
+    # Reset CN8
+    updateSelectInput(session, "cn8_code", choices = NULL)
   })
   
-  # Update CN8 choices when chapter changes
-  observeEvent(input$chapter_filter, {
+  # 3. Update CN8 when country + year + chapter selected
+  observeEvent(c(input$country_filter, input$year_filter, input$chapter_filter), {
+    req(input$chapter_filter)
+    
     filtered_cn8_codes <- cn8_by_country_year_chapter %>%
       filter(country_origin == input$country_filter,
+             Year == input$year_filter,
              HS2 == input$chapter_filter) %>%
       pull(cn8) %>%
       unique()
@@ -203,32 +265,23 @@ server <- function(input, output, session) {
                       selected = NULL)
   })
   
-  # Update year choices when CN8 changes (year is now last)
-  observeEvent(input$cn8_code, {
-    filtered_years <- years_by_country %>%
-      filter(country_origin == input$country_filter) %>%
-      pull(years) %>%
-      unique()
-    
-    updateSelectInput(session, "year_filter",
-                      choices = as.character(unlist(filtered_years)),
-                      selected = NULL)
-  })
-  
-  
-  # Enable show map button
+  # 4. Enable show map button
   observe({
-    is_ready <- !is.null(input$country_filter) && !is.null(input$chapter_filter) && !is.null(input$cn8_code) && !is.null(input$year_filter)
+    is_ready <- !is.null(input$country_filter) &&
+      !is.null(input$year_filter) &&
+      !is.null(input$chapter_filter) &&
+      !is.null(input$cn8_code)
+    
     if (is_ready) enable("show_map") else disable("show_map")
   })
   
-  # Filter only when button clicked
+  # 5. Collect filters only when button clicked
   selected_filters <- eventReactive(input$show_map, {
     list(
       country = input$country_filter,
+      year    = input$year_filter,
       chapter = input$chapter_filter,
-      cn8 = input$cn8_code,
-      year = input$year_filter
+      cn8     = input$cn8_code
     )
   })
   
@@ -237,7 +290,13 @@ server <- function(input, output, session) {
     req(f)
     show("loading-spinner")
     
-    data <- cod_data %>% filter(CN8 == f$cn8, country_origin == f$country, Year == f$year) %>% na.omit()
+    data <- cod_data %>%
+      filter(
+        CN8 == f$cn8,
+        country_origin == f$country,
+        Year == f$year
+      ) %>%
+      na.omit()
     
     if (nrow(data) == 0) {
       hide("loading-spinner")
@@ -246,124 +305,106 @@ server <- function(input, output, session) {
     
     result <- data %>%
       mutate(
-        route_id = paste0(cooalpha, "_", codalpha, "_GB"),
-        PUR_numeric = suppressWarnings(as.numeric(PUR)),
-        PUR_clean = ifelse(PUR == "Not Eligible", NA, PUR_numeric)
+        combocode_clean = tolower(trimws(ifelse(is.na(combocode), "", combocode))),
+        
+        # eligible starts
+        eligible_start    = grepl("^e[235]", combocode_clean),     # e2/e3/e5
+        noneligible_start = grepl("^e1", combocode_clean),         # e1
+        
+        # endings
+        end_use     = grepl("u(20|21|30|31)$", combocode_clean),
+        end_nonuse  = grepl("u(10|11)$", combocode_clean),
+        
+        # classify route types
+        route_type = dplyr::case_when(
+          eligible_start & end_use       ~ "use",
+          eligible_start & end_nonuse    ~ "non_use",
+          noneligible_start & end_nonuse ~ "non_eligible",   # << NEW
+          TRUE                           ~ NA_character_
+        ),
+        
+        route_id    = paste0(cooalpha, "_", codalpha, "_GB"),
+        PUR_numeric = suppressWarnings(as.numeric(gsub("%", "", PUR)))
       ) %>%
-      group_by(route_id, lat1, lon1, lat2, lon2, lat3, lon3,
-               cooalpha, codalpha, ukalpha, country_origin,
-               country_dispatch, country_destination, CN8, CN8_desc) %>%
+      filter(!is.na(route_type)) %>%
+      group_by(
+        route_id, lat1, lon1, lat2, lon2, lat3, lon3,
+        cooalpha, codalpha, ukalpha, country_origin,
+        country_dispatch, country_destination, CN8, CN8_desc, route_type
+      ) %>%
       summarise(
-        Avg_PUR = mean(PUR_clean, na.rm = TRUE),
-        PUR_text = if (all(is.na(PUR_clean))) {
-          "Not Eligible"
-        } else {
-          sprintf("%.0f", mean(PUR_clean, na.rm = TRUE))
-        },
-        non_eligible_import = sum(ifelse(is.na(PUR_clean), Total_imp, 0), na.rm = TRUE), # <-- new line
+        Avg_PUR      = mean(PUR_numeric, na.rm = TRUE),
+        route_import = sum(Total_imp, na.rm = TRUE),
         .groups = "drop"
       ) %>%
       mutate(
         route = paste(country_origin, country_dispatch, "UK", sep = " → "),
-        PUR = ifelse(PUR_text == "Not Eligible", "Not Eligible", paste0(PUR_text, "%"))
+        PUR   = ifelse(is.finite(Avg_PUR), sprintf("%.0f%%", Avg_PUR), "—")
       )
     
     return(result)
   })
   
-  loading_messages <- c(
-    "Mapping your trade routes…",
-    "Generating routes…",
-    "Almost there…"
-  )
-  
-  observe({
-    invalidateLater(1500, session)  # every 1.5 seconds
-    new_text <- sample(loading_messages, 1)
-    runjs(sprintf("document.getElementById('loading-text').innerText = '%s';", new_text))
-  })
-  
-  
-  observe({
-    is_ready <- !is.null(input$country_filter) &&
-      !is.null(input$chapter_filter) &&
-      !is.null(input$cn8_code) &&
-      !is.null(input$year_filter)
-    
-    if (is_ready) {
-      enable("show_map")
-    } else {
-      disable("show_map")
-    }
-  })
   
   # Info Box
   output$info_box <- renderUI({
     data <- filtered_data()
     if (is.null(data) || nrow(data) == 0) return(NULL)
     
-    # CN8 description from filtered data
-    cn8_desc <- data %>%
-      pull(CN8_desc) %>%
-      unique()
+    cn8_desc <- data %>% pull(CN8_desc) %>% unique()
     
-    # Split eligible and non-eligible routes
-    eligible_routes <- data %>%
-      filter(PUR != "Not Eligible") %>%
+    use_routes <- data %>%
+      filter(route_type == "use") %>%
       mutate(display = paste0("<strong>", route, ":</strong> ", PUR)) %>%
       pull(display)
     
-    non_eligible_routes <- data %>%
-      filter(PUR == "Not Eligible") %>%
-      mutate(display = paste0("<strong>", route, "</strong> £", 
-                              format(non_eligible_import, big.mark = ","))) %>%
+    non_use_routes <- data %>%
+      filter(route_type == "non_use") %>%
+      mutate(display = paste0("<strong>", route, "</strong> £",
+                              format(route_import, big.mark = ","))) %>%
       pull(display)
     
-    # HTML for eligible routes
-    eligible_html <- paste0(
-      "<strong style='color:#3c7543;'>Eligible Routes:</strong><br>",
-      if (length(eligible_routes) > 0) {
-        paste(eligible_routes, collapse = "<br>")
-      } else {
-        "None"
-      }
-    )
+    non_eligible_routes <- data %>%
+      filter(route_type == "non_eligible") %>%
+      mutate(display = paste0("<strong>", route, "</strong> £",
+                              format(route_import, big.mark = ","))) %>%
+      pull(display)
     
-    # HTML for non-eligible routes with explanatory line
     non_eligible_html <- paste0(
-      "<br><br><strong style='color:#a33;'>Non-Eligible Routes:</strong><br>",
-      if (length(non_eligible_routes) > 0) {
-        paste0(
-          "<em>Values shown are total import values for each route:</em><br>",
-          paste(non_eligible_routes, collapse = "<br>")
-        )
-      } else {
-        "None"
-      }
+      "<br><br><strong style='color:#555;'>Non-Eligible Routes:</strong><br>",
+      if (length(non_eligible_routes) > 0)
+        paste0("<em>Values shown are total import values for each route:</em><br>",
+               paste(non_eligible_routes, collapse = "<br>"))
+      else "None"
     )
     
-    # Combine everything in a styled box
+    use_html <- paste0(
+      "<strong style='color:#3c7543;'>Use Routes:</strong><br>",
+      if (length(use_routes) > 0) paste(use_routes, collapse = "<br>") else "None"
+    )
+    
+    non_use_html <- paste0(
+      "<br><br><strong style='color:#a33;'>Non-Use Routes:</strong><br>",
+      if (length(non_use_routes) > 0)
+        paste0("<em>Values shown are total import values for each route:</em><br>",
+               paste(non_use_routes, collapse = "<br>"))
+      else "None"
+    )
+    
     HTML(paste0(
-      "<div style='border: 1px solid #ddd; padding: 12px 15px; background-color: #f9f9f9; 
-           border-radius: 8px; font-family: Segoe UI, sans-serif; font-size: 14px; line-height: 1.6;'>",
-      
-      "<div style='margin-bottom: 8px;'>
-    <strong style='color:#3c7543;'>CN8 Code:</strong> ", input$cn8_code, "<br>
-    <strong style='color:#3c7543;'>CN8 Description:</strong> ", ifelse(length(cn8_desc) > 0, cn8_desc, "Unknown"), "<br>
-    <strong style='color:#3c7543;'>Country of Origin:</strong> ", input$country_filter, "<br>
-    <strong style='color:#3c7543;'>Year:</strong> ", input$year_filter, "
-  </div>",
-      
-      "<hr style='border: 0; border-top: 1px solid #ddd; margin: 8px 0;'>",
-      
-      eligible_html,
-      non_eligible_html,
-      
+      "<div style='border:1px solid #ddd; padding:12px 15px; background:#f9f9f9; 
+         border-radius:8px; font-family:Segoe UI, sans-serif; font-size:14px; line-height:1.6;'>",
+      "<div style='margin-bottom:8px;'>
+      <strong style='color:#3c7543;'>CN8 Code:</strong> ", input$cn8_code, "<br>
+      <strong style='color:#3c7543;'>CN8 Description:</strong> ", ifelse(length(cn8_desc) > 0, cn8_desc, "Unknown"), "<br>
+      <strong style='color:#3c7543;'>Country of Origin:</strong> ", input$country_filter, "<br>
+      <strong style='color:#3c7543;'>Year:</strong> ", input$year_filter, "
+    </div>",
+      "<hr style='border:0; border-top:1px solid #ddd; margin:8px 0;'>",
+      use_html, non_use_html,non_eligible_html,
       "</div>"
     ))
   })
-  
-  
   
   output$extra_info_box <- renderUI({
     req(filtered_data())
