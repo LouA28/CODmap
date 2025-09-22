@@ -76,7 +76,7 @@ final_importPURTEST$country_destination <- countrycode(final_importPURTEST$ukalp
 
 cod_data <- final_importPURTEST %>%
   select(Year, CN8, CN8_desc, country_origin, country_dispatch,country_destination,
-         cooalpha, codalpha, ukalpha, combocode, Total_imp, PUR, lat1, lon1, lat2, lon2, lat3, lon3)
+         cooalpha, codalpha, ukalpha, combocode, Pref_Trade, Eligible_Trade, Total_imp, PUR, lat1, lon1, lat2, lon2, lat3, lon3)
 
 
 saveRDS(cod_data, "CODdata/cod_data.RDS")
