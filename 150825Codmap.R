@@ -462,7 +462,7 @@ server <- function(input, output, session) {
         
         # Title
         "<div style='text-align: center; margin-bottom: 20px;'>",
-        "<strong style='color: #3c7543; font-size: 16px;'>PREFERENCE UTILIZATION SUMMARY</strong>",
+        "<strong style='color: #3c7543; font-size: 16px;'>PREFERENCE UTILISATION SUMMARY</strong>",
         "</div>",
         
         # Two-column layout for Used vs Unused
