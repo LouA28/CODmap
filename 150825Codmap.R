@@ -211,7 +211,7 @@ div[style*='overflow-y: auto'] {
     ),
     
     # MAP PAGE
-    # In the UI section, update the map page layout:
+    # In the UI section, update the map page layout to make the sidebar wider:
     tabPanel("map",
              fluidRow(
                column(
@@ -220,11 +220,11 @@ div[style*='overflow-y: auto'] {
                  div(
                    style = "display:flex; flex-direction:row; height: calc(100vh - 120px);",
                    div(
-                     style = "flex: 1; max-width: 300px; padding: 10px; display: flex; flex-direction: column; gap: 20px;",
+                     style = "flex: 1; max-width: 350px; padding: 10px; display: flex; flex-direction: column; gap: 20px;", # Changed from 300px to 350px
                      uiOutput("extra_info_box"),
                      # Add scrollable container for info boxes
                      div(
-                       style = "flex: 1; overflow-y: auto; overflow-x: hidden; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9;",
+                       style = "flex: 1; overflow-y: auto; overflow-x: hidden; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;", # Increased padding
                        uiOutput("info_box")
                      )
                    ),
@@ -405,6 +405,21 @@ server <- function(input, output, session) {
       (unused_pref_trade / total_eligible_trade) * 100
     } else 0
     
+    # Vectorized function to format values
+    format_millions <- function(values) {
+      sapply(values, function(value) {
+        if (is.na(value) || value == 0) {
+          return("£0")
+        } else if (value >= 1000000) {
+          return(paste0("£", sprintf("%.1f", value / 1000000), "M"))
+        } else if (value >= 1000) {
+          return(paste0("£", sprintf("%.0f", value / 1000), "K"))
+        } else {
+          return(paste0("£", format(round(value), big.mark = ",")))
+        }
+      })
+    }
+    
     # Prepare eligible routes data (combine used and non-used by route)
     eligible_routes <- data %>%
       filter(route_type %in% c("use", "non_use")) %>%
@@ -415,116 +430,131 @@ server <- function(input, output, session) {
         .groups = "drop"
       ) %>%
       mutate(
+        used_formatted = format_millions(used_trade),
+        unused_formatted = format_millions(unused_trade),
         display = paste0(
-          "<strong>", route, ":</strong> ",
+          "<div style='margin-bottom: 8px; line-height: 1.4;'>",
+          "<strong>", route, ":</strong><br>",
           # Show used trade if > 0
           ifelse(used_trade > 0, 
-                 paste0("£", format(used_trade, big.mark = ","), " <span style='color: #3c7543;'>(used)</span>"), 
+                 paste0("&nbsp;&nbsp;", used_formatted, " <span style='color:#3c7543; font-weight: bold;'>(used)</span>"), 
                  ""),
-          # Add separator if both exist
-          ifelse(used_trade > 0 & unused_trade > 0, " | ", ""),
+          # Add line break if both exist
+          ifelse(used_trade > 0 & unused_trade > 0, "<br>", ""),
           # Show unused trade if > 0
           ifelse(unused_trade > 0, 
-                 paste0("£", format(unused_trade, big.mark = ","), " <span style='color: #cc6666;'>(not used)</span>"), 
-                 "")
+                 paste0("&nbsp;&nbsp;", unused_formatted, " <span style='color:#cc6666; font-weight: bold;'>(not used)</span>"), 
+                 ""),
+          "</div>"
         )
       ) %>%
       pull(display)
     
-    # Prepare non-eligible routes
+    # Prepare non-eligible routes with the same formatting function
     non_eligible_routes <- data %>%
       filter(route_type == "non_eligible") %>%
-      mutate(display = paste0(
-        "<strong>", route, ":</strong> £",
-        format(route_import, big.mark = ",")
-      )) %>%
+      mutate(
+        formatted_value = format_millions(route_import),
+        display = paste0(
+          "<div style='margin-bottom: 8px; line-height: 1.4;'>",
+          "<strong>", route, ":</strong><br>",
+          "&nbsp;&nbsp;", formatted_value,
+          "</div>"
+        )
+      ) %>%
       pull(display)
     
     HTML(paste0(
-      "<div style='font-family: Segoe UI, sans-serif; font-size: 14px; line-height: 1.6;'>",
+      "<div style='font-family: Segoe UI, sans-serif; font-size: 14px; line-height: 1.5;'>",
       
-      # Header information box
-      "<div style='background: #fff; border: 2px solid #3c7543; border-radius: 8px; padding: 15px; margin-bottom: 15px;'>",
-      "<div style='text-align: center; margin-bottom: 10px;'>",
-      "<strong style='color: #3c7543; font-size: 16px;'>", input$cn8_code, "</strong>",
+      # Header information box - increased padding
+      "<div style='background: #fff; border: 2px solid #3c7543; border-radius: 8px; padding: 18px; margin-bottom: 15px;'>",
+      "<div style='text-align: center; margin-bottom: 12px;'>",
+      "<strong style='color: #3c7543; font-size: 17px;'>", input$cn8_code, "</strong>",
       "</div>",
-      "<div style='text-align: center; font-size: 12px; color: #666; margin-bottom: 10px;'>",
+      "<div style='text-align: center; font-size: 12px; color: #666; margin-bottom: 12px; line-height: 1.3;'>",
       ifelse(length(cn8_desc) > 0, cn8_desc, "Unknown description"),
       "</div>",
       "<div style='text-align: center; font-size: 13px; color: #555;'>",
-      "<strong>Origin:</strong> ", input$country_filter, " | <strong>Year:</strong> ", input$year_filter,
+      "<strong>Origin:</strong> ", input$country_filter, "<br><strong>Year:</strong> ", input$year_filter,
       "</div>",
       "</div>",
       
-      # Combined Preference Utilization Summary Box (only if there's eligible trade)
+      # Combined Preference Utilization Summary Box - increased padding and better spacing
       if(total_eligible_trade > 0) paste0(
-        "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 20px; margin-bottom: 15px; background: #fff;'>",
+        "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 22px; margin-bottom: 15px; background: #fff;'>",
         
         # Title
-        "<div style='text-align: center; margin-bottom: 20px;'>",
-        "<strong style='color: #3c7543; font-size: 16px;'>PREFERENCE UTILISATION SUMMARY</strong>",
+        "<div style='text-align: center; margin-bottom: 22px;'>",
+        "<strong style='color: #3c7543; font-size: 17px;'>PREFERENCE UTILIZATION SUMMARY</strong>",
         "</div>",
         
-        # Two-column layout for Used vs Unused
-        "<div style='display: flex; justify-content: space-between; margin-bottom: 20px;'>",
+        # Two-column layout for Used vs Unused - better spacing
+        "<div style='display: flex; justify-content: space-between; margin-bottom: 22px; gap: 20px;'>",
         
         # Preferences Used column
-        "<div style='text-align: center; flex: 1; margin-right: 10px;'>",
-        "<div style='font-size: 28px; font-weight: bold; color: #3c7543; margin-bottom: 8px;'>",
+        "<div style='text-align: center; flex: 1; padding: 0 5px;'>",
+        "<div style='font-size: 32px; font-weight: bold; color: #3c7543; margin-bottom: 10px;'>",
         sprintf("%.1f%%", overall_pur),
         "</div>",
-        "<div style='font-size: 12px; font-weight: bold; color: #666; margin-bottom: 5px;'>",
+        "<div style='font-size: 13px; font-weight: bold; color: #666; margin-bottom: 6px;'>",
         "PREFERENCES USED",
         "</div>",
-        "<div style='font-size: 11px; color: #888;'>",
-        "£", format(total_pref_trade, big.mark = ","),  # Removed space here
+        "<div style='font-size: 12px; color: #888;'>",
+        "£", format(total_pref_trade, big.mark = ","),
         "</div>",
         "</div>",
         
         # Preferences Unused column
-        "<div style='text-align: center; flex: 1; margin-left: 10px;'>",
-        "<div style='font-size: 28px; font-weight: bold; color: #cc6666; margin-bottom: 8px;'>",
+        "<div style='text-align: center; flex: 1; padding: 0 5px;'>",
+        "<div style='font-size: 32px; font-weight: bold; color: #cc6666; margin-bottom: 10px;'>",
         sprintf("%.1f%%", unused_pur),
         "</div>",
-        "<div style='font-size: 12px; font-weight: bold; color: #666; margin-bottom: 5px;'>",
+        "<div style='font-size: 13px; font-weight: bold; color: #666; margin-bottom: 6px;'>",
         "PREFERENCES UNUSED",
         "</div>",
-        "<div style='font-size: 11px; color: #888;'>",
-        "£", format(unused_pref_trade, big.mark = ","),  # Removed space here
+        "<div style='font-size: 12px; color: #888;'>",
+        "£", format(unused_pref_trade, big.mark = ","),
         "</div>",
         "</div>",
         
         "</div>",
         
-        # Total Eligible Trade at bottom
-        "<div style='text-align: center; padding: 12px; background: rgba(60, 117, 67, 0.1); border-radius: 6px;'>",
-        "<strong style='color: #3c7543; font-size: 14px;'>Total Eligible Trade: £", format(total_eligible_trade, big.mark = ","), "</strong>",  # Removed space here
+        # Total Eligible Trade at bottom - increased padding
+        "<div style='text-align: center; padding: 14px; background: rgba(60, 117, 67, 0.1); border-radius: 6px;'>",
+        "<strong style='color: #3c7543; font-size: 15px;'>Total Eligible Trade: £", format(total_eligible_trade, big.mark = ","), "</strong>",
         "</div>",
         
         "</div>"
       ) else "",
       
-      # Combined Eligible Routes (used and non-used together)
+      # Combined Eligible Routes - increased padding and better layout
       if(length(eligible_routes) > 0) paste0(
-        "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #fff;'>",
-        "<div style='margin-bottom: 8px;'>",
+        "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 18px; margin-bottom: 15px; background: #fff;'>",
+        "<div style='margin-bottom: 12px;'>",
         "<i class='fa fa-route' style='color: #3c7543; margin-right: 8px;'></i>",
-        "<strong style='color: #3c7543;'>Eligible Routes</strong>",
+        "<strong style='color: #3c7543; font-size: 15px;'>Eligible Routes</strong>",
         "</div>",
-        "<em style='font-size: 90%; color: #666;'>Trade values by route - <span style='color: #3c7543;'>(used)</span> where preferences were claimed, <span style='color: #cc6666;'>(not used)</span> where available but not claimed:</em><br><br>",
-        paste(eligible_routes, collapse = "<br>"),
+        "<div style='font-size: 12px; color: #666; margin-bottom: 15px; line-height: 1.4;'>",
+        "<em>Trade values by route (M=millions, K=thousands):</em><br>",
+        "<span style='color: #3c7543; font-weight: bold;'>(used)</span> - preferences claimed | ",
+        "<span style='color: #cc6666; font-weight: bold;'>(not used)</span> - available but not claimed",
+        "</div>",
+        paste(eligible_routes, collapse = ""),
         "</div>"
       ) else "",
       
-      # Non-eligible routes
+      # Non-eligible routes - NOW WITH SAME FORMATTING
       if(length(non_eligible_routes) > 0) paste0(
-        "<div style='border: 2px solid #888; border-radius: 8px; padding: 15px; background: #fff;'>",
-        "<div style='margin-bottom: 8px;'>",
+        "<div style='border: 2px solid #888; border-radius: 8px; padding: 18px; background: #fff;'>",
+        "<div style='margin-bottom: 12px;'>",
         "<i class='fa fa-times-circle' style='color: #888; margin-right: 8px;'></i>",
-        "<strong style='color: #666;'>Non-Eligible Routes</strong>",
+        "<strong style='color: #666; font-size: 15px;'>Non-Eligible Routes</strong>",
         "</div>",
-        "<em style='font-size: 90%; color: #666;'>Trade values where no preferences were available:</em><br>",
-        paste(non_eligible_routes, collapse = "<br>"),
+        "<div style='font-size: 12px; color: #666; margin-bottom: 15px;'>",
+        "<em>Trade values where no preferences were available (M=millions, K=thousands):</em>",
+        "</div>",
+        paste(non_eligible_routes, collapse = ""),
         "</div>"
       ) else "",
       
