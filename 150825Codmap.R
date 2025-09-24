@@ -464,9 +464,9 @@ server <- function(input, output, session) {
                  ""),
           # Add line break if both exist
           ifelse(used_trade > 0 & unused_trade > 0, "<br>", ""),
-          # Show unused trade if > 0
+          # Show unused trade if > 0 - UPDATED WITH ORANGE COLOR
           ifelse(unused_trade > 0, 
-                 paste0("&nbsp;&nbsp;", unused_formatted, " <span style='color:#cc6666; font-weight: bold;'>(not used)</span>"), 
+                 paste0("&nbsp;&nbsp;", unused_formatted, " <span style='color:#e67e22; font-weight: bold;'>(not used)</span>"), 
                  ""),
           "</div>"
         )
@@ -508,7 +508,7 @@ server <- function(input, output, session) {
       )
     )
     
-    # Add Preference Utilisation Summary Box (only if eligible trade exists) - WITH TOTAL TRADE BOX
+    # Add Preference Utilisation Summary Box (only if eligible trade exists) - WITH ORANGE FOR UNUSED
     if(has_eligible_trades) {
       html_parts <- append(html_parts, paste0(
         "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 22px; margin-bottom: 15px; background: #fff;'>",
@@ -528,7 +528,8 @@ server <- function(input, output, session) {
         "</div>",
         "</div>",
         "<div style='text-align: center; flex: 1; padding: 0 5px;'>",
-        "<div style='font-size: 32px; font-weight: bold; color: #cc6666; margin-bottom: 10px;'>",
+        # UPDATED: Changed color to orange for unused percentage
+        "<div style='font-size: 32px; font-weight: bold; color: #e67e22; margin-bottom: 10px;'>",
         sprintf("%.1f%%", unused_pur),
         "</div>",
         "<div style='font-size: 13px; font-weight: bold; color: #666; margin-bottom: 6px;'>",
@@ -561,7 +562,8 @@ server <- function(input, output, session) {
         "<div style='font-size: 12px; color: #666; margin-bottom: 15px; line-height: 1.4;'>",
         "<em>Eligible trade values by route (m=millions, k=thousands):</em><br>",
         "<span style='color: #3c7543; font-weight: bold;'>(used)</span> - preferences claimed | ",
-        "<span style='color: #cc6666; font-weight: bold;'>(not used)</span> - available but not claimed",
+        # UPDATED: Changed color to orange in legend
+        "<span style='color: #e67e22; font-weight: bold;'>(not used)</span> - available but not claimed",
         "</div>",
         # Add the routes first
         paste(eligible_routes, collapse = ""),
