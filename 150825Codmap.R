@@ -211,7 +211,6 @@ div[style*='overflow-y: auto'] {
     ),
     
     # MAP PAGE
-    # In the UI section, update the map page layout to make the sidebar wider:
     tabPanel("map",
              fluidRow(
                column(
@@ -220,16 +219,16 @@ div[style*='overflow-y: auto'] {
                  div(
                    style = "display:flex; flex-direction:row; height: calc(100vh - 120px);",
                    div(
-                     style = "flex: 1; max-width: 350px; padding: 10px; display: flex; flex-direction: column; gap: 20px;", # Changed from 300px to 350px
+                     style = "flex: 1.5; max-width: 400px; padding: 10px; display: flex; flex-direction: column; gap: 20px;",
                      uiOutput("extra_info_box"),
                      # Add scrollable container for info boxes
                      div(
-                       style = "flex: 1; overflow-y: auto; overflow-x: hidden; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;", # Increased padding
+                       style = "flex: 1; overflow-y: auto; overflow-x: hidden; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;",
                        uiOutput("info_box")
                      )
                    ),
                    div(
-                     style = "flex: 4; position: relative;",
+                     style = "flex: 3; position: relative;",
                      leafletOutput("map", height = "100%"),
                      absolutePanel(
                        bottom = 10, left = 10, width = "auto", draggable = FALSE,
@@ -395,7 +394,7 @@ server <- function(input, output, session) {
     total_pref_trade <- sum(data$pref_import[data$route_type == "use"], na.rm = TRUE)
     total_non_eligible <- sum(data$route_import[data$route_type == "non_eligible"], na.rm = TRUE)
     
-    # Calculate overall PUR (Preference Utilization Rate)
+    # Calculate overall PUR (Preference Utilisation Rate) - changed z to s
     overall_pur <- if(total_eligible_trade > 0) {
       (total_pref_trade / total_eligible_trade) * 100
     } else 0
@@ -405,19 +404,32 @@ server <- function(input, output, session) {
       (unused_pref_trade / total_eligible_trade) * 100
     } else 0
     
-    # Vectorized function to format values
+    # Vectorised function to format values - changed z to s, and m/k to lowercase
     format_millions <- function(values) {
       sapply(values, function(value) {
         if (is.na(value) || value == 0) {
           return("£0")
         } else if (value >= 1000000) {
-          return(paste0("£", sprintf("%.1f", value / 1000000), "M"))
+          return(paste0("£", sprintf("%.1f", value / 1000000), "m"))
         } else if (value >= 1000) {
-          return(paste0("£", sprintf("%.0f", value / 1000), "K"))
+          return(paste0("£", sprintf("%.0f", value / 1000), "k"))
         } else {
           return(paste0("£", format(round(value), big.mark = ",")))
         }
       })
+    }
+    
+    # Function to format large values for totals (also with lowercase m/k)
+    format_total <- function(value) {
+      if (is.na(value) || value == 0) {
+        return("£0")
+      } else if (value >= 1000000) {
+        return(paste0("£", sprintf("%.1f", value / 1000000), "m"))
+      } else if (value >= 1000) {
+        return(paste0("£", sprintf("%.0f", value / 1000), "k"))
+      } else {
+        return(paste0("£", format(round(value), big.mark = ",")))
+      }
     }
     
     # Prepare eligible routes data (combine used and non-used by route)
@@ -450,15 +462,15 @@ server <- function(input, output, session) {
       ) %>%
       pull(display)
     
-    # Prepare non-eligible routes with the same formatting function
+    # Prepare non-eligible routes with better formatting AND millions/thousands conversion
     non_eligible_routes <- data %>%
       filter(route_type == "non_eligible") %>%
       mutate(
-        formatted_value = format_millions(route_import),
+        formatted_value = format_millions(route_import), # Apply the same formatting
         display = paste0(
           "<div style='margin-bottom: 8px; line-height: 1.4;'>",
           "<strong>", route, ":</strong><br>",
-          "&nbsp;&nbsp;", formatted_value,
+          "&nbsp;&nbsp;", formatted_value, # Use formatted value instead of raw format
           "</div>"
         )
       ) %>%
@@ -480,13 +492,13 @@ server <- function(input, output, session) {
       "</div>",
       "</div>",
       
-      # Combined Preference Utilization Summary Box - increased padding and better spacing
+      # Combined Preference Utilisation Summary Box - changed z to s, and formatted total
       if(total_eligible_trade > 0) paste0(
         "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 22px; margin-bottom: 15px; background: #fff;'>",
         
         # Title
         "<div style='text-align: center; margin-bottom: 22px;'>",
-        "<strong style='color: #3c7543; font-size: 17px;'>PREFERENCE UTILIZATION SUMMARY</strong>",
+        "<strong style='color: #3c7543; font-size: 17px;'>PREFERENCE UTILISATION SUMMARY</strong>",
         "</div>",
         
         # Two-column layout for Used vs Unused - better spacing
@@ -501,7 +513,7 @@ server <- function(input, output, session) {
         "PREFERENCES USED",
         "</div>",
         "<div style='font-size: 12px; color: #888;'>",
-        "£", format(total_pref_trade, big.mark = ","),
+        format_total(total_pref_trade), # Now formatted
         "</div>",
         "</div>",
         
@@ -514,21 +526,21 @@ server <- function(input, output, session) {
         "PREFERENCES UNUSED",
         "</div>",
         "<div style='font-size: 12px; color: #888;'>",
-        "£", format(unused_pref_trade, big.mark = ","),
+        format_total(unused_pref_trade), # Now formatted
         "</div>",
         "</div>",
         
         "</div>",
         
-        # Total Eligible Trade at bottom - increased padding
+        # Total Eligible Trade at bottom - now formatted
         "<div style='text-align: center; padding: 14px; background: rgba(60, 117, 67, 0.1); border-radius: 6px;'>",
-        "<strong style='color: #3c7543; font-size: 15px;'>Total Eligible Trade: £", format(total_eligible_trade, big.mark = ","), "</strong>",
+        "<strong style='color: #3c7543; font-size: 15px;'>Total Eligible Trade: ", format_total(total_eligible_trade), "</strong>",
         "</div>",
         
         "</div>"
       ) else "",
       
-      # Combined Eligible Routes - increased padding and better layout
+      # Combined Eligible Routes - updated text with lowercase m=millions, k=thousands
       if(length(eligible_routes) > 0) paste0(
         "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 18px; margin-bottom: 15px; background: #fff;'>",
         "<div style='margin-bottom: 12px;'>",
@@ -536,7 +548,7 @@ server <- function(input, output, session) {
         "<strong style='color: #3c7543; font-size: 15px;'>Eligible Routes</strong>",
         "</div>",
         "<div style='font-size: 12px; color: #666; margin-bottom: 15px; line-height: 1.4;'>",
-        "<em>Trade values by route (M=millions, K=thousands):</em><br>",
+        "<em>Trade values by route (m=millions, k=thousands):</em><br>",
         "<span style='color: #3c7543; font-weight: bold;'>(used)</span> - preferences claimed | ",
         "<span style='color: #cc6666; font-weight: bold;'>(not used)</span> - available but not claimed",
         "</div>",
@@ -544,7 +556,7 @@ server <- function(input, output, session) {
         "</div>"
       ) else "",
       
-      # Non-eligible routes - NOW WITH SAME FORMATTING
+      # Non-eligible routes - NOW WITH SAME FORMATTING AS ELIGIBLE ROUTES
       if(length(non_eligible_routes) > 0) paste0(
         "<div style='border: 2px solid #888; border-radius: 8px; padding: 18px; background: #fff;'>",
         "<div style='margin-bottom: 12px;'>",
@@ -552,7 +564,7 @@ server <- function(input, output, session) {
         "<strong style='color: #666; font-size: 15px;'>Non-Eligible Routes</strong>",
         "</div>",
         "<div style='font-size: 12px; color: #666; margin-bottom: 15px;'>",
-        "<em>Trade values where no preferences were available (M=millions, K=thousands):</em>",
+        "<em>Trade values where no preferences were available (m=millions, k=thousands):</em>", # Updated to mention formatting
         "</div>",
         paste(non_eligible_routes, collapse = ""),
         "</div>"
@@ -562,16 +574,62 @@ server <- function(input, output, session) {
     ))
   })
   
+  output$extra_info_box <- renderUI({
+    req(filtered_data())
+    
+    HTML(paste0(
+      # Toggle button with better text
+      "<button id='toggleInfoBtn' onclick='toggleInfoBox()' 
+        style='margin-top:10px; background-color:#3c7543; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;'>
+        Data Descriptions & Definitions
+      </button>",
+      
+      # Collapsible info box (initially hidden)
+      "<div id='logisticsInfoBox' style='display:none; border: 1px solid #ddd; padding: 12px 15px; margin-top: 10px; margin-bottom: 20px;
+                background-color: #fffdee; border-radius: 8px;
+                font-family: Segoe UI, sans-serif; font-size: 13px; line-height: 1.5;'>",
+      
+      "<strong style='color:#3c7543;'>Important Notes:</strong><br><br>",
+      
+      "Routes are shown as straight lines and may not reflect actual transport paths.<br><br>",
+      
+      "There may be overlaps between country of origin & country of dispatch on the map, as the country of origin can also be country of dispatch.<br><br>",
+      
+      "COO <strong>(Country of Origin)</strong>: represents the country where a product comes from<br>",
+      "COD <strong>(Country of Dispatch)</strong>: the country where the last commercial transaction took place<br><br>",
+      
+      "<strong>Data caveats:</strong> This view helps understand logistics-PUR interactions, not meant to replace existing tools.<br><br>",
+      
+      "<strong>Source:</strong> UK import PUR data 2022–2025 (HMRC),<br><br> <strong>Last Updated:</strong> August 2025<br><br>",
+      
+      "For details on <strong>COO/COD</strong>, visit the <a href='https://dap-prd2-connect.azure.defra.cloud/country_of_origin/' target='_blank'>Country of origin/dispatch dashboard</a>.<br>",
+      "For <strong>PUR details</strong>, explore the <a href='https://dap-prd2-connect.azure.defra.cloud/PUR-app/' target='_blank'>UK Import PUR App</a>.<br>",
+      
+      "</div>",
+      
+      # JavaScript to toggle the info box
+      "<script>
+        function toggleInfoBox() {
+          var box = document.getElementById('logisticsInfoBox');
+          if (box.style.display === 'none') {
+            box.style.display = 'block';
+          } else {
+            box.style.display = 'none';
+          }
+        }
+      </script>"
+    ))
+  })
   
   # Map legend
   output$map_legend <- renderUI({
     req(filtered_data())
     HTML(paste0(
       "<div style='background: rgba(255,255,255,0.8);
-                  padding: 5px 10px;
-                  border-radius: 5px;
-                  font-size: 14px;
-                  display: inline-block;'>",
+                    padding: 5px 10px;
+                    border-radius: 5px;
+                    font-size: 14px;
+                    display: inline-block;'>",
       "<strong>Legend:</strong><br>",
       "<span style='color: #db992e;'>● Country of Origin</span><br>",
       "<span style='color: #3f99bf;'>● Dispatch Country</span><br>",
@@ -580,7 +638,6 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Map rendering
   # Map rendering
   output$map <- renderLeaflet({
     data <- filtered_data()
@@ -664,7 +721,7 @@ server <- function(input, output, session) {
         data = cod_pts,
         lng = ~lon2_adj, lat = ~lat2_adj,
         icon = awesomeIcons(icon = "truck", markerColor = "blue", iconColor = "white", library = "fa"),
-        label = ~paste("Transit Country:", country_dispatch)
+        label = ~paste("Dispatch Country:", country_dispatch) 
       ) %>%
       addAwesomeMarkers(
         data = uk_pts,
