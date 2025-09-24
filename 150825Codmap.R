@@ -319,6 +319,7 @@ server <- function(input, output, session) {
     )
   })
   
+  # In the filtered_data reactive function, update the route classification:
   filtered_data <- reactive({
     f <- selected_filters()
     req(f)
@@ -341,9 +342,12 @@ server <- function(input, output, session) {
       mutate(
         combocode_clean = tolower(trimws(ifelse(is.na(combocode), "", combocode))),
         
-        # eligible starts
-        eligible_start    = grepl("^e[235]", combocode_clean),     # e2/e3/e5
-        noneligible_start = grepl("^e1", combocode_clean),         # e1
+        # Check for specific non-eligible pattern first
+        is_e3u10 = grepl("e3u10", combocode_clean),
+        
+        # eligible starts (but exclude e3u10)
+        eligible_start    = grepl("^e[235]", combocode_clean) & !is_e3u10,
+        noneligible_start = grepl("^e1", combocode_clean) | is_e3u10,  # e1 OR e3u10
         
         # endings
         end_use     = grepl("u(20|21|30|31)$", combocode_clean),
@@ -353,7 +357,7 @@ server <- function(input, output, session) {
         route_type = dplyr::case_when(
           eligible_start & end_use       ~ "use",
           eligible_start & end_nonuse    ~ "non_use",
-          noneligible_start & end_nonuse ~ "non_eligible",
+          noneligible_start              ~ "non_eligible",  # Any non-eligible start
           TRUE                           ~ NA_character_
         ),
         
@@ -389,12 +393,19 @@ server <- function(input, output, session) {
     
     cn8_desc <- data %>% pull(CN8_desc) %>% unique()
     
-    # Calculate overall statistics
+    # Calculate overall statistics using eligible_import for eligible routes
     total_eligible_trade <- sum(data$eligible_import[data$route_type %in% c("use", "non_use")], na.rm = TRUE)
     total_pref_trade <- sum(data$pref_import[data$route_type == "use"], na.rm = TRUE)
     total_non_eligible <- sum(data$route_import[data$route_type == "non_eligible"], na.rm = TRUE)
     
-    # Calculate overall PUR (Preference Utilisation Rate) - changed z to s
+    # Calculate total trade from all routes (eligible + non-eligible)
+    total_all_trade <- sum(data$route_import, na.rm = TRUE)
+    
+    # Check if we have eligible trades
+    has_eligible_trades <- total_eligible_trade > 0
+    has_non_eligible_trades <- total_non_eligible > 0
+    
+    # Calculate overall PUR (Preference Utilisation Rate)
     overall_pur <- if(total_eligible_trade > 0) {
       (total_pref_trade / total_eligible_trade) * 100
     } else 0
@@ -404,7 +415,7 @@ server <- function(input, output, session) {
       (unused_pref_trade / total_eligible_trade) * 100
     } else 0
     
-    # Vectorised function to format values - changed z to s, and m/k to lowercase
+    # Vectorised function to format values
     format_millions <- function(values) {
       sapply(values, function(value) {
         if (is.na(value) || value == 0) {
@@ -419,7 +430,7 @@ server <- function(input, output, session) {
       })
     }
     
-    # Function to format large values for totals (also with lowercase m/k)
+    # Function to format large values for totals
     format_total <- function(value) {
       if (is.na(value) || value == 0) {
         return("£0")
@@ -432,13 +443,13 @@ server <- function(input, output, session) {
       }
     }
     
-    # Prepare eligible routes data (combine used and non-used by route)
+    # Use eligible_import for eligible routes calculations
     eligible_routes <- data %>%
       filter(route_type %in% c("use", "non_use")) %>%
       group_by(route) %>%
       summarise(
-        used_trade = sum(ifelse(route_type == "use", route_import, 0), na.rm = TRUE),
-        unused_trade = sum(ifelse(route_type == "non_use", route_import, 0), na.rm = TRUE),
+        used_trade = sum(ifelse(route_type == "use", eligible_import, 0), na.rm = TRUE),
+        unused_trade = sum(ifelse(route_type == "non_use", eligible_import, 0), na.rm = TRUE),
         .groups = "drop"
       ) %>%
       mutate(
@@ -462,49 +473,49 @@ server <- function(input, output, session) {
       ) %>%
       pull(display)
     
-    # Prepare non-eligible routes with better formatting AND millions/thousands conversion
+    # Prepare non-eligible routes
     non_eligible_routes <- data %>%
       filter(route_type == "non_eligible") %>%
       mutate(
-        formatted_value = format_millions(route_import), # Apply the same formatting
+        formatted_value = format_millions(route_import),
         display = paste0(
           "<div style='margin-bottom: 8px; line-height: 1.4;'>",
           "<strong>", route, ":</strong><br>",
-          "&nbsp;&nbsp;", formatted_value, # Use formatted value instead of raw format
+          "&nbsp;&nbsp;", formatted_value,
           "</div>"
         )
       ) %>%
       pull(display)
     
-    HTML(paste0(
+    # Build the HTML output
+    html_parts <- list(
+      # Opening div
       "<div style='font-family: Segoe UI, sans-serif; font-size: 14px; line-height: 1.5;'>",
       
-      # Header information box - increased padding
-      "<div style='background: #fff; border: 2px solid #3c7543; border-radius: 8px; padding: 18px; margin-bottom: 15px;'>",
-      "<div style='text-align: center; margin-bottom: 12px;'>",
-      "<strong style='color: #3c7543; font-size: 17px;'>", input$cn8_code, "</strong>",
-      "</div>",
-      "<div style='text-align: center; font-size: 12px; color: #666; margin-bottom: 12px; line-height: 1.3;'>",
-      ifelse(length(cn8_desc) > 0, cn8_desc, "Unknown description"),
-      "</div>",
-      "<div style='text-align: center; font-size: 13px; color: #555;'>",
-      "<strong>Origin:</strong> ", input$country_filter, "<br><strong>Year:</strong> ", input$year_filter,
-      "</div>",
-      "</div>",
-      
-      # Combined Preference Utilisation Summary Box - changed z to s, and formatted total
-      if(total_eligible_trade > 0) paste0(
+      # Header information box
+      paste0(
+        "<div style='background: #fff; border: 2px solid #3c7543; border-radius: 8px; padding: 18px; margin-bottom: 15px;'>",
+        "<div style='text-align: center; margin-bottom: 12px;'>",
+        "<strong style='color: #3c7543; font-size: 17px;'>", input$cn8_code, "</strong>",
+        "</div>",
+        "<div style='text-align: center; font-size: 12px; color: #666; margin-bottom: 12px; line-height: 1.3;'>",
+        ifelse(length(cn8_desc) > 0, cn8_desc, "Unknown description"),
+        "</div>",
+        "<div style='text-align: center; font-size: 13px; color: #555;'>",
+        "<strong>Origin:</strong> ", input$country_filter, "<br><strong>Year:</strong> ", input$year_filter,
+        "</div>",
+        "</div>"
+      )
+    )
+    
+    # Add Preference Utilisation Summary Box (only if eligible trade exists) - WITH TOTAL TRADE BOX
+    if(has_eligible_trades) {
+      html_parts <- append(html_parts, paste0(
         "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 22px; margin-bottom: 15px; background: #fff;'>",
-        
-        # Title
         "<div style='text-align: center; margin-bottom: 22px;'>",
         "<strong style='color: #3c7543; font-size: 17px;'>PREFERENCE UTILISATION SUMMARY</strong>",
         "</div>",
-        
-        # Two-column layout for Used vs Unused - better spacing
         "<div style='display: flex; justify-content: space-between; margin-bottom: 22px; gap: 20px;'>",
-        
-        # Preferences Used column
         "<div style='text-align: center; flex: 1; padding: 0 5px;'>",
         "<div style='font-size: 32px; font-weight: bold; color: #3c7543; margin-bottom: 10px;'>",
         sprintf("%.1f%%", overall_pur),
@@ -513,11 +524,9 @@ server <- function(input, output, session) {
         "PREFERENCES USED",
         "</div>",
         "<div style='font-size: 12px; color: #888;'>",
-        format_total(total_pref_trade), # Now formatted
+        format_total(total_pref_trade),
         "</div>",
         "</div>",
-        
-        # Preferences Unused column
         "<div style='text-align: center; flex: 1; padding: 0 5px;'>",
         "<div style='font-size: 32px; font-weight: bold; color: #cc6666; margin-bottom: 10px;'>",
         sprintf("%.1f%%", unused_pur),
@@ -526,99 +535,86 @@ server <- function(input, output, session) {
         "PREFERENCES UNUSED",
         "</div>",
         "<div style='font-size: 12px; color: #888;'>",
-        format_total(unused_pref_trade), # Now formatted
+        format_total(unused_pref_trade),
         "</div>",
         "</div>",
-        
         "</div>",
-        
-        # Total Eligible Trade at bottom - now formatted
-        "<div style='text-align: center; padding: 14px; background: rgba(60, 117, 67, 0.1); border-radius: 6px;'>",
-        "<strong style='color: #3c7543; font-size: 15px;'>Total Eligible Trade: ", format_total(total_eligible_trade), "</strong>",
+        # Add the Total Trade box here, at the bottom of the preference summary
+        "<div style='text-align: center; padding: 16px; background: rgba(60, 117, 67, 0.1); border-radius: 6px; border: 1px solid #3c7543;'>",
+        "<strong style='color: #3c7543; font-size: 16px;'>Total Trade: ", format_total(total_all_trade), "</strong>",
+        "<br><span style='font-size: 12px; color: #666; margin-top: 5px; display: inline-block;'>",
+        "(Eligible + Non-Eligible Routes)",
+        "</span>",
         "</div>",
-        
         "</div>"
-      ) else "",
-      
-      # Combined Eligible Routes - updated text with lowercase m=millions, k=thousands
-      if(length(eligible_routes) > 0) paste0(
+      ))
+    }
+    
+    # Add Eligible Routes box (only if eligible routes exist) - WITH TOTAL ELIGIBLE TRADE BOX BELOW ROUTES
+    if(length(eligible_routes) > 0) {
+      html_parts <- append(html_parts, paste0(
         "<div style='border: 2px solid #3c7543; border-radius: 8px; padding: 18px; margin-bottom: 15px; background: #fff;'>",
         "<div style='margin-bottom: 12px;'>",
         "<i class='fa fa-route' style='color: #3c7543; margin-right: 8px;'></i>",
         "<strong style='color: #3c7543; font-size: 15px;'>Eligible Routes</strong>",
         "</div>",
         "<div style='font-size: 12px; color: #666; margin-bottom: 15px; line-height: 1.4;'>",
-        "<em>Trade values by route (m=millions, k=thousands):</em><br>",
+        "<em>Eligible trade values by route (m=millions, k=thousands):</em><br>",
         "<span style='color: #3c7543; font-weight: bold;'>(used)</span> - preferences claimed | ",
         "<span style='color: #cc6666; font-weight: bold;'>(not used)</span> - available but not claimed",
         "</div>",
+        # Add the routes first
         paste(eligible_routes, collapse = ""),
+        # Add the Total Eligible Trade box BELOW the routes
+        "<div style='text-align: center; padding: 14px; background: rgba(60, 117, 67, 0.1); border-radius: 6px; margin-top: 15px; border: 1px solid #3c7543;'>",
+        "<strong style='color: #3c7543; font-size: 15px;'>Total Eligible Trade: ", format_total(total_eligible_trade), "</strong>",
+        "</div>",
         "</div>"
-      ) else "",
-      
-      # Non-eligible routes - NOW WITH SAME FORMATTING AS ELIGIBLE ROUTES
-      if(length(non_eligible_routes) > 0) paste0(
-        "<div style='border: 2px solid #888; border-radius: 8px; padding: 18px; background: #fff;'>",
+      ))
+    }
+    
+    # Add Non-eligible routes box (ONLY when there are BOTH eligible AND non-eligible trades)
+    if(has_eligible_trades && has_non_eligible_trades && length(non_eligible_routes) > 0) {
+      html_parts <- append(html_parts, paste0(
+        "<div style='border: 2px solid #888; border-radius: 8px; padding: 18px; margin-bottom: 15px; background: #fff;'>",
         "<div style='margin-bottom: 12px;'>",
         "<i class='fa fa-times-circle' style='color: #888; margin-right: 8px;'></i>",
         "<strong style='color: #666; font-size: 15px;'>Non-Eligible Routes</strong>",
         "</div>",
         "<div style='font-size: 12px; color: #666; margin-bottom: 15px;'>",
-        "<em>Trade values where no preferences were available (m=millions, k=thousands):</em>", # Updated to mention formatting
+        "<em>Trade values where no preferences were available (including e3u10 routes) (m=millions, k=thousands):</em>",
         "</div>",
         paste(non_eligible_routes, collapse = ""),
+        "<div style='text-align: center; padding: 10px; background: rgba(136, 136, 136, 0.1); border-radius: 6px; margin-top: 10px;'>",
+        "<strong style='color: #666; font-size: 13px;'>Total Non-Eligible Trade: ", format_total(total_non_eligible), "</strong>",
+        "</div>",
         "</div>"
-      ) else "",
-      
-      "</div>"
-    ))
-  })
-  
-  output$extra_info_box <- renderUI({
-    req(filtered_data())
+      ))
+    }
     
-    HTML(paste0(
-      # Toggle button with better text
-      "<button id='toggleInfoBtn' onclick='toggleInfoBox()' 
-        style='margin-top:10px; background-color:#3c7543; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;'>
-        Data Descriptions & Definitions
-      </button>",
-      
-      # Collapsible info box (initially hidden)
-      "<div id='logisticsInfoBox' style='display:none; border: 1px solid #ddd; padding: 12px 15px; margin-top: 10px; margin-bottom: 20px;
-                background-color: #fffdee; border-radius: 8px;
-                font-family: Segoe UI, sans-serif; font-size: 13px; line-height: 1.5;'>",
-      
-      "<strong style='color:#3c7543;'>Important Notes:</strong><br><br>",
-      
-      "Routes are shown as straight lines and may not reflect actual transport paths.<br><br>",
-      
-      "There may be overlaps between country of origin & country of dispatch on the map, as the country of origin can also be country of dispatch.<br><br>",
-      
-      "COO <strong>(Country of Origin)</strong>: represents the country where a product comes from<br>",
-      "COD <strong>(Country of Dispatch)</strong>: the country where the last commercial transaction took place<br><br>",
-      
-      "<strong>Data caveats:</strong> This view helps understand logistics-PUR interactions, not meant to replace existing tools.<br><br>",
-      
-      "<strong>Source:</strong> UK import PUR data 2022–2025 (HMRC),<br><br> <strong>Last Updated:</strong> August 2025<br><br>",
-      
-      "For details on <strong>COO/COD</strong>, visit the <a href='https://dap-prd2-connect.azure.defra.cloud/country_of_origin/' target='_blank'>Country of origin/dispatch dashboard</a>.<br>",
-      "For <strong>PUR details</strong>, explore the <a href='https://dap-prd2-connect.azure.defra.cloud/PUR-app/' target='_blank'>UK Import PUR App</a>.<br>",
-      
-      "</div>",
-      
-      # JavaScript to toggle the info box
-      "<script>
-        function toggleInfoBox() {
-          var box = document.getElementById('logisticsInfoBox');
-          if (box.style.display === 'none') {
-            box.style.display = 'block';
-          } else {
-            box.style.display = 'none';
-          }
-        }
-      </script>"
-    ))
+    # If only non-eligible trades exist (no eligible trades), show a different message
+    if(!has_eligible_trades && has_non_eligible_trades) {
+      html_parts <- append(html_parts, paste0(
+        "<div style='border: 2px solid #888; border-radius: 8px; padding: 18px; margin-bottom: 15px; background: #fff;'>",
+        "<div style='margin-bottom: 12px;'>",
+        "<i class='fa fa-info-circle' style='color: #888; margin-right: 8px;'></i>",
+        "<strong style='color: #666; font-size: 15px;'>All Routes Non-Eligible</strong>",
+        "</div>",
+        "<div style='font-size: 12px; color: #666; margin-bottom: 15px;'>",
+        "<em>No eligible routes found - all trade was through non-preference channels:</em>",
+        "</div>",
+        paste(non_eligible_routes, collapse = ""),
+        "<div style='text-align: center; padding: 14px; background: rgba(136, 136, 136, 0.1); border-radius: 6px; margin-top: 10px;'>",
+        "<strong style='color: #666; font-size: 15px;'>Total Trade: ", format_total(total_non_eligible), "</strong>",
+        "</div>",
+        "</div>"
+      ))
+    }
+    
+    # Closing div
+    html_parts <- append(html_parts, "</div>")
+    
+    HTML(paste(html_parts, collapse = ""))
   })
   
   # Map legend
@@ -626,10 +622,10 @@ server <- function(input, output, session) {
     req(filtered_data())
     HTML(paste0(
       "<div style='background: rgba(255,255,255,0.8);
-                    padding: 5px 10px;
-                    border-radius: 5px;
-                    font-size: 14px;
-                    display: inline-block;'>",
+                  padding: 5px 10px;
+                  border-radius: 5px;
+                  font-size: 14px;
+                  display: inline-block;'>",
       "<strong>Legend:</strong><br>",
       "<span style='color: #db992e;'>● Country of Origin</span><br>",
       "<span style='color: #3f99bf;'>● Dispatch Country</span><br>",
@@ -637,7 +633,6 @@ server <- function(input, output, session) {
       "</div>"
     ))
   })
-  
   # Map rendering
   output$map <- renderLeaflet({
     data <- filtered_data()
