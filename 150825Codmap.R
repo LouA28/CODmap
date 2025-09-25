@@ -599,7 +599,6 @@ server <- function(input, output, session) {
       html_parts <- append(html_parts, paste0(
         "<div style='border: 2px solid #888; border-radius: 8px; padding: 18px; margin-bottom: 15px; background: #fff;'>",
         "<div style='margin-bottom: 12px;'>",
-        "<i class='fa fa-info-circle' style='color: #888; margin-right: 8px;'></i>",
         "<strong style='color: #666; font-size: 15px;'>All Routes Non-Eligible</strong>",
         "</div>",
         "<div style='font-size: 12px; color: #666; margin-bottom: 15px;'>",
@@ -635,6 +634,55 @@ server <- function(input, output, session) {
       "</div>"
     ))
   })
+  
+  output$extra_info_box <- renderUI({
+    req(filtered_data())
+    
+    HTML(paste0(
+      # Toggle button
+      "<button id='toggleInfoBtn' onclick='toggleInfoBox()' 
+        style='margin-top:10px; background-color:#3c7543; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;'>
+        Data Descriptions & Definitions
+    </button>",
+      
+      # Collapsible info box (initially hidden)
+      "<div id='logisticsInfoBox' style='display:none; border: 1px solid #ddd; padding: 12px 15px; margin-top: 10px; margin-bottom: 20px;
+                background-color: #fffdee; border-radius: 8px;
+                font-family: Segoe UI, sans-serif; font-size: 13px; line-height: 1.5;'>",
+      
+      "<strong style='color:#3c7543;'>Important Notes:</strong><br><br>",
+      
+      "Routes are shown as straight lines and may not reflect actual transport paths.<br><br>",
+      
+      "There may be overlaps between country of origin & country of dispatch on the map, as the country of origin can also be couintry of dispatch.<br><br>",
+      
+      "<strong>COO:</strong> Country of Origin: represents the country where a product comes from<br>",
+      "<strong>COD:</strong> Country of Dispatch: the country where the last commercial transaction took place<br><br>",
+      
+      "<strong>Data caveats:</strong> This view helps understand logistics-PUR interactions, not meant to replace existing tools.<br><br>",
+      
+      "<strong>Source:</strong> UK import PUR data 2022–2025 (HMRC),<br><br> <strong>Last Updated:</strong> September 2025<br><br>",
+      
+      "For details on <strong>COO/COD</strong>, visit the <a href='https://dap-prd2-connect.azure.defra.cloud/country_of_origin/' target='_blank'>Country of origin/dispatch dashboard</a>.<br>",
+      "For <strong>PUR details</strong>, explore the <a href='https://dap-prd2-connect.azure.defra.cloud/PUR-app/' target='_blank'>UK Import PUR App</a>.<br>",
+      
+      "</div>",
+      
+      # JavaScript to toggle the info box
+      "<script>
+      function toggleInfoBox() {
+        var box = document.getElementById('logisticsInfoBox');
+        if (box.style.display === 'none') {
+          box.style.display = 'block';
+        } else {
+          box.style.display = 'none';
+        }
+      }
+    </script>"
+    ))
+  })
+  
+  # Map rendering
   # Map rendering
   output$map <- renderLeaflet({
     data <- filtered_data()
@@ -673,7 +721,7 @@ server <- function(input, output, session) {
     # Prepare small distinct datasets for markers (keep adjusted coordinates)
     coo_pts <- data %>% 
       distinct(cooalpha, .keep_all = TRUE) %>% 
-      select(cooalpha, lon1, lat1, country_origin, route_pur, eligible_import)
+      select(cooalpha, lon1, lat1, country_origin)
     
     cod_pts <- data %>% 
       distinct(codalpha, .keep_all = TRUE) %>% 
@@ -710,14 +758,13 @@ server <- function(input, output, session) {
         data = coo_pts,
         lng = ~lon1, lat = ~lat1,
         icon = awesomeIcons(icon = "globe", markerColor = "orange"),
-        label = ~HTML(paste0("COO: ", country_origin, 
-                             "<br>Eligible Trade: £", format(eligible_import, big.mark = ","),
-                             "<br>PUR Rate: ", route_pur))
+        # UPDATED: Simplified label to only show country of origin
+        label = ~paste("COO:", country_origin)
       ) %>%
       addAwesomeMarkers(
         data = cod_pts,
         lng = ~lon2_adj, lat = ~lat2_adj,
-        icon = awesomeIcons(icon = "truck", markerColor = "blue", iconColor = "white", library = "fa"),
+        icon = awesomeIcons(icon = "clipboard", markerColor = "blue", iconColor = "white", library = "fa"),
         label = ~paste("Dispatch Country:", country_dispatch) 
       ) %>%
       addAwesomeMarkers(
