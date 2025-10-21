@@ -16,7 +16,7 @@ cn8_by_country_year_chapter <- readRDS("CODdata/cn8_by_country_year_chapter.RDS"
 ui <- fluidPage(
   useShinyjs(),
   tags$head(
-    tags$title("Origin-to-UK Tracker"),
+    tags$title("OriginPUR"),
     tags$style(HTML("
     /* Full-screen spinner overlay */
     #loading-spinner {
@@ -47,13 +47,14 @@ ui <- fluidPage(
       100% { transform: rotate(360deg); }
     }
 
-    /* Center filter page content */
+    /* Filter page layout — no huge vertical gap */
     .filter-container {
       display: flex;
       justify-content: center;
-      align-items: center;
-      height: 80vh;
-      text-align: center;
+      align-items: flex-start;
+      height: auto;
+      text-align: center;   /* <- fixed (was invalid) */
+      margin-top: 6px;
     }
 
     .filter-box {
@@ -175,16 +176,26 @@ div[style*='overflow-y: auto'] {
       text-align: center;
       user-select: none;
     ",
-      tags$h1(
-        "Origin-to-UK Tracker",
-        style = "
-        font-weight: 700; 
-        font-size: 2rem; 
-        letter-spacing: 1px;
-        color: #3c7543; 
-        margin: 0;
-      "
-      )
+      # Title row with a small info icon
+      tags$div(
+        style = "display:flex; align-items:center; justify-content:center; gap:8px;",
+        tags$h1(
+          "OriginPUR",
+          style = "
+          font-weight: 700; 
+          font-size: 2rem; 
+          letter-spacing: 1px;
+          color: #3c7543; 
+          margin: 0;
+        "
+        ),
+        actionLink(
+          "about_app", NULL,
+          icon = icon("info-circle"),
+          style = "color:#3c7543; font-size:1.2rem; text-decoration:none;",
+          title = "Click here for more info"
+        )
+    )
     )
   ),
   
@@ -247,6 +258,22 @@ server <- function(input, output, session) {
   observe({
     updateTabsetPanel(session, "main_tabs", selected = "filters")
     hide("loading-spinner")
+  })
+  
+  observeEvent(input$about_app, {
+    showModal(modalDialog(
+      title = "About OriginPUR",
+      easyClose = TRUE,
+      footer = modalButton("Close"),
+      size = "m",
+      tags$p("This app visualises how Rules of Origin and trade patterns influence the UK’s Preference Utilisation Rates (PUR) by product (HS2/CN8) and year."),
+      tags$ul(
+        tags$li("Choose Country of Origin, HS2 chapter, CN8 code and year."),
+        tags$li("See COO → COD → UK routes for the selected product."),
+        tags$li("Read the info panels for route details and average PUR."),
+        tags$p("Disclaimer: This view helps understand logistics-PUR interactions, not meant to replace existing tools.")
+      )
+    ))
   })
   
   # Update chapter choices when country changes
@@ -647,24 +674,38 @@ server <- function(input, output, session) {
       
       # Collapsible info box (initially hidden)
       "<div id='logisticsInfoBox' style='display:none; border: 1px solid #ddd; padding: 12px 15px; margin-top: 10px; margin-bottom: 20px;
-                background-color: #fffdee; border-radius: 8px;
-                font-family: Segoe UI, sans-serif; font-size: 13px; line-height: 1.5;'>",
+        background-color: #fffdee; border-radius: 8px; font-family: Segoe UI, sans-serif; font-size: 13px;'>",
       
-      "<strong style='color:#3c7543;'>Important Notes:</strong><br><br>",
+      "<strong style='color:#3c7543;'>Important Notes:</strong>",
+      "<p>Routes are shown as straight lines and may not reflect actual transport paths.</p>",
+      "<p>There may be overlaps between country of origin &amp; country of dispatch on the map, as the country of origin can also be country of dispatch.</p>",
       
-      "Routes are shown as straight lines and may not reflect actual transport paths.<br><br>",
+      "<p><strong>COO:</strong> Country of Origin represents the country where a product comes from<br>
+     <strong>COD:</strong> Country of Dispatch where the last commercial transaction took place.</p>",
       
-      "There may be overlaps between country of origin & country of dispatch on the map, as the country of origin can also be couintry of dispatch.<br><br>",
+      "<hr style='border:0; border-top:1px solid #ddd; margin:8px 0;'>",
       
-      "<strong>COO:</strong> Country of Origin: represents the country where a product comes from<br>",
-      "<strong>COD:</strong> Country of Dispatch: the country where the last commercial transaction took place<br><br>",
+      "<p>For details on <strong>COO/COD</strong>, visit the 
+     <a href='https://dap-prd2-connect.azure.defra.cloud/country_of_origin/' target='_blank'>
+     Country of origin/dispatch dashboard</a>.</p>",
       
-      "<strong>Data caveats:</strong> This view helps understand logistics-PUR interactions, not meant to replace existing tools.<br><br>",
+      "<p>For <strong>PUR details</strong>, explore the 
+     <a href='https://dash-connect-prd.azure.defra.cloud/PUR-app/' target='_blank'>
+     UK Import PUR App</a>.</p>",
       
-      "<strong>Source:</strong> UK import PUR data 2022–2025 (HMRC),<br><br> <strong>Last Updated:</strong> September 2025<br><br>",
+      "<p><strong>Contacts:</strong><br>
+     Louise Anokye (<a href='mailto:louise.anokye@defra.gov.uk'>louise.anokye@defra.gov.uk</a>)<br>
+     Katie Earl (<a href='mailto:katie.earl@defra.gov.uk'>katie.earl@defra.gov.uk</a>)</p>",
       
-      "For details on <strong>COO/COD</strong>, visit the <a href='https://dap-prd2-connect.azure.defra.cloud/country_of_origin/' target='_blank'>Country of origin/dispatch dashboard</a>.<br>",
-      "For <strong>PUR details</strong>, explore the <a href='https://dap-prd2-connect.azure.defra.cloud/PUR-app/' target='_blank'>UK Import PUR App</a>.<br>",
+      "<hr style='border:0; border-top:1px solid #ddd; margin:8px 0;'>",
+      
+      "<p><strong>Data caveats:</strong> This view helps understand logistics-PUR interactions, not meant to replace existing tools.</p>",
+      
+      "<p><strong>Source:</strong> UK import PUR data 2022–2025 (HMRC)</p>",
+      
+      "<p><strong>Last Updated:</strong> August 2025</p>",
+      
+      "<p><em>Note:</em> Data for <strong>2025</strong> are <strong>part-year</strong> (covering January–August) and are <strong>provisional</strong>.</p>",
       
       "</div>",
       
