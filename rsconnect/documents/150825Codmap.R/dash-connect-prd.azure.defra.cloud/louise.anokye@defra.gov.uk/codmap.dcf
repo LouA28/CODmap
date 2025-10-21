@@ -1,0 +1,13 @@
+name: codmap
+title: CODmap
+username: louise.anokye@defra.gov.uk
+account: louise.anokye@defra.gov.uk
+server: dash-connect-prd.azure.defra.cloud
+hostUrl: https://dash-connect-prd.azure.defra.cloud/__api__
+appId: 106
+bundleId:
+url: https://dash-connect-prd.azure.defra.cloud/content/dd4a63a2-cb5d-4454-b497-cb87ec870544/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: COD data calculations II.R|COD processing II.R|README.md
