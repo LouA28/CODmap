@@ -686,7 +686,7 @@ server <- function(input, output, session) {
       "<hr style='border:0; border-top:1px solid #ddd; margin:8px 0;'>",
       
       "<p>For details on <strong>COO/COD</strong>, visit the 
-     <a href='https://dap-prd2-connect.azure.defra.cloud/country_of_origin/' target='_blank'>
+     <a href='https://dash-connect-prd.azure.defra.cloud/country_of_origin/' target='_blank'>
      Country of origin/dispatch dashboard</a>.</p>",
       
       "<p>For <strong>PUR details</strong>, explore the 
