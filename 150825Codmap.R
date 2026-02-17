@@ -195,7 +195,7 @@ div[style*='overflow-y: auto'] {
           style = "color:#3c7543; font-size:1.2rem; text-decoration:none;",
           title = "Click here for more info"
         )
-    )
+      )
     )
   ),
   
