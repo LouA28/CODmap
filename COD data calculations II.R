@@ -34,7 +34,7 @@ data <- rbindlist(df_list)
 
 #Class file is combination of 2022 and 2023 CN systems.
 
-class <- read_excel("classifications2022to25.xlsx")
+class <- read_excel("classifications2022to26.xlsx")
 
 PUR_elig <- read_excel("PUR eligibility.xlsx")
 
