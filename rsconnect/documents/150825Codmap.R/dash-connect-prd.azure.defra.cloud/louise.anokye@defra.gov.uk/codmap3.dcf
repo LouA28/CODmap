@@ -5,9 +5,9 @@ account: louise.anokye@defra.gov.uk
 server: dash-connect-prd.azure.defra.cloud
 hostUrl: https://dash-connect-prd.azure.defra.cloud/__api__
 appId: 265
-bundleId: 694
-url: https://dash-connect-prd.azure.defra.cloud/content/de7ca6d9-7ded-4a6f-8a8e-8c6991cdfb3e/
+bundleId: 1764
+url: https://dash-connect-prd.azure.defra.cloud/CODmap/
 version: 1
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: README.md
+ignoredFiles: README.md|Raw Data
